@@ -1,44 +1,56 @@
-name: Semantic PR
+name: Lint Commit Messages
+
 on:
-   push:
-    types:
-      - opened
-      - edited
-      - synchronize
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
 
 jobs:
-  main:
+  commitlint:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: amannn/action-semantic-pull-request@v5
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          types: |
-            fix
-            feat
-            docs
-            style
-            refactor
-            test
-            chore
-            perf
-            revert
-          scopes: |
-            web
-            server
-            docker
-            docs
-            ci
-            deps
-            keycloak
-          requireScope: false
-          ignoreLabels: |
-            bot
-          subjectPattern: ^(?![A-Z]).+$
-          subjectPatternError: |
-            The subject "{subject}" found in the pull request title "{title}"
-            didn't match the configured pattern. Please ensure that the subject
-            doesn't start with an uppercase character.
-          validateSingleCommit: true
-          wip: true
+          node-version: 20
+
+      - name: Install commitlint
+        run: |
+          npm install --no-save @commitlint/cli @commitlint/config-conventional
+
+      - name: Create commitlint config
+        run: |
+          cat > commitlint.config.mjs << 'EOF'
+          export default {
+            extends: ['@commitlint/config-conventional'],
+            rules: {
+              'type-enum': [
+                2,
+                'always',
+                ['fix', 'feat', 'docs', 'style', 'refactor', 'test', 'chore', 'perf', 'revert'],
+              ],
+              'scope-enum': [
+                2,
+                'always',
+                ['web', 'server', 'docker', 'docs', 'ci', 'deps', 'keycloak'],
+              ],
+              'scope-empty': [0, 'never'],
+              'subject-case': [2, 'never', ['sentence-case', 'start-case', 'pascal-case', 'upper-case']],
+            },
+          }
+          EOF
+
+      - name: Lint pushed commits
+        run: |
+          if [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
+            npx commitlint --from HEAD~1 --to HEAD
+          else
+            npx commitlint --from ${{ github.event.before }} --to ${{ github.sha }}
+          fi

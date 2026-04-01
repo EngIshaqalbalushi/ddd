@@ -1,6 +1,6 @@
 name: Semantic PR
 on:
-  pull_request:
+   push:
     types:
       - opened
       - edited
